@@ -1,5 +1,5 @@
 import { subDays, subHours, format } from "date-fns";
-import { History, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { Download, History, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -22,6 +22,7 @@ import {
   type MarketSnapshot,
   type Timeframe,
 } from "@/lib/market";
+import { downloadCsv } from "@/lib/csv";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
@@ -137,9 +138,32 @@ export function WhatIfCalculator({
             What if you had invested earlier?
           </h2>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Based on CoinMarketCap % changes{tf.id === "1y" ? " · 1Y uses reference history" : ""}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            Based on CoinMarketCap % changes{tf.id === "1y" ? " · 1Y uses reference history" : ""}
+          </p>
+          {coin && result && (
+            <button
+              type="button"
+              onClick={() => {
+                const c = (usd: number) => Math.round(convertFromUsd(usd, currency) * 100) / 100;
+                downloadCsv(
+                  [
+                    ["Coin", "Timeframe", `Invested (${currency})`, `Price then (${currency})`, `Price now (${currency})`, "Coins bought", `Value today (${currency})`, `Profit (${currency})`, "Profit %"],
+                    [coin.symbol, tf.label, c(amountUsd), c(pastPrice ?? 0), c(coin.price), result.units, c(result.valueUsd), c(result.profitUsd), Math.round(result.profitPct * 100) / 100],
+                    [],
+                    ["Date", `Value (${currency})`],
+                    ...chartData.map((d) => [format(d.ts, "yyyy-MM-dd HH:mm"), c(d.value)]),
+                  ],
+                  `cryptopulser-whatif-${coin.symbol}-${tf.short}.csv`,
+                );
+              }}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-secondary/40 px-2.5 text-xs font-medium transition-colors hover:border-primary/50 hover:text-primary"
+            >
+              <Download className="size-3.5" /> Download CSV
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-0 lg:grid-cols-[360px_1fr]">

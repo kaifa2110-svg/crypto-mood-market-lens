@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Ghost, Lock, KeyRound, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { CheckCircle2, CircleHelp, Eye, EyeOff, Ghost, Lock, KeyRound, Loader2, RefreshCw, Settings2, ShieldCheck, Trash2, XCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,22 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { testCmcKey } from "@/lib/cmc.functions";
+import { LOCK_EVENT } from "@/lib/csv";
 import type { MarketState } from "@/hooks/use-market";
 import { CURRENCIES, CURRENCY_CODES, isCurrencyCode } from "@/lib/currency";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
+
+function Tip({ text, children }: { text: string; children: React.ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent className="max-w-60 text-xs">{text}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 function Logo() {
   return (
@@ -69,9 +82,28 @@ function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(settings.apiKey);
   const [reveal, setReveal] = useState(false);
+  const [test, setTest] = useState<{ state: "idle" | "busy" | "ok" | "err"; msg?: string }>({ state: "idle" });
+  const runTest = useServerFn(testCmcKey);
+  const onTest = async () => {
+    const key = draft.trim();
+    if (!key) return setTest({ state: "err", msg: "Paste a key first." });
+    setTest({ state: "busy" });
+    try {
+      const r = await runTest({ data: { apiKey: key } });
+      setTest(r.ok
+        ? { state: "ok", msg: r.creditsLeft != null ? `Key is valid · ${r.creditsLeft.toLocaleString()} credits left this month` : "Key is valid" }
+        : { state: "err", msg: r.message });
+    } catch {
+      setTest({ state: "err", msg: "Couldn't reach CoinMarketCap. Try again." });
+    }
+  };
 
   useEffect(() => {
-    if (open) setDraft(settings.apiKey);
+    if (open) {
+      setDraft(settings.apiKey);
+      setReveal(false);
+      setTest({ state: "idle" });
+    }
   }, [open, settings.apiKey]);
 
   const save = () => {
@@ -109,7 +141,10 @@ function SettingsDialog() {
                 spellCheck={false}
                 placeholder="e.g. 1a2b3c4d-…"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  setTest({ state: "idle" });
+                }}
                 className="num pr-10"
               />
               <button
@@ -120,6 +155,17 @@ function SettingsDialog() {
               >
                 {reveal ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={onTest} disabled={test.state === "busy" || !draft.trim()}>
+                {test.state === "busy" ? <Loader2 className="animate-spin" /> : <KeyRound />} Test API Key
+              </Button>
+              {test.state === "ok" && (
+                <span role="status" className="inline-flex items-center gap-1 text-xs text-gain"><CheckCircle2 className="size-4" />{test.msg}</span>
+              )}
+              {test.state === "err" && (
+                <span role="alert" className="inline-flex items-center gap-1 text-xs text-loss"><XCircle className="size-4 shrink-0" />{test.msg}</span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               No key yet?{" "}
@@ -185,6 +231,7 @@ function PrivacySwitch({ icon: Icon, label, hint, checked, onChange }: {
   onChange: (v: boolean) => void;
 }) {
   return (
+    <Tip text={hint}>
     <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-2.5">
       <span className="flex items-start gap-2">
         <Icon className="mt-0.5 size-4 text-primary" />
@@ -195,6 +242,7 @@ function PrivacySwitch({ icon: Icon, label, hint, checked, onChange }: {
       </span>
       <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </label>
+    </Tip>
   );
 }
 
@@ -202,6 +250,7 @@ function PrivacyBadge() {
   const { settings, update } = useSettings();
   return (
     <Popover>
+      <Tip text="Privacy center: Auto-Lock, Incognito and Panic Wipe. Your data stays in this browser.">
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -212,6 +261,7 @@ function PrivacyBadge() {
           <span className="hidden xl:inline">Local & Private</span>
         </button>
       </PopoverTrigger>
+      </Tip>
       <PopoverContent align="end" className="panel w-80 border-border text-sm">
         <div className="flex items-center gap-2 font-semibold">
           <ShieldCheck className="size-4 text-primary" /> Local & Private
@@ -251,16 +301,17 @@ function PanicWipeButton({ variant = "icon" }: { variant?: "icon" | "full" }) {
     );
   }
   return (
+    <Tip text="Panic Wipe: instantly erase your API key, watchlist, history and chat from this browser.">
     <Button
       variant="ghost"
       size="icon"
       onClick={onWipe}
       aria-label="Panic wipe: clear API key and history"
-      title="Panic Wipe — clear API key & history"
       className="text-destructive hover:bg-destructive/15 hover:text-destructive"
     >
       <Trash2 />
     </Button>
+    </Tip>
   );
 }
 
@@ -268,30 +319,127 @@ function StealthToggle() {
   const { settings, update } = useSettings();
   const on = settings.stealth;
   return (
+    <Tip text={on ? "Stealth on — amounts are hidden. Click or press Alt+H to show." : "Stealth Mode: hide your amounts and profits (Alt+H)."}>
     <Button
       variant="ghost"
       size="icon"
       aria-pressed={on}
       aria-label={on ? "Turn off stealth mode" : "Turn on stealth mode"}
-      title={on ? "Stealth mode on — amounts hidden" : "Stealth mode — hide amounts"}
       onClick={() => update({ stealth: !on })}
       className={cn(on && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary")}
     >
       {on ? <EyeOff /> : <Eye />}
     </Button>
+    </Tip>
   );
+}
+
+const SHORTCUTS = [
+  ["Alt + H", "Toggle Stealth Mode"],
+  ["Alt + L", "Lock the screen now"],
+  ["/", "Jump to the coin search"],
+  ["?", "Open this help guide"],
+] as const;
+
+const FEATURES = [
+  ["Market overview", "Global market cap, 24h volume, BTC dominance and the Fear & Greed gauge."],
+  ["What-If Simulator", "Pick a coin, amount and date to see what your investment would be worth today. Download the result as CSV."],
+  ["Live Screener", "Top 100 coins plus Trending, Watchlist (tap the star), sectors, gainers/losers, Altcoin Index, volume, exchanges and news."],
+  ["Currency switcher", "Show every figure in USD, PKR, EUR, AED or INR."],
+  ["Ask Crypto Pulser AI", "Ask questions about the data on screen from the button at the bottom right."],
+  ["Privacy tools", "Stealth hides amounts, Auto-Lock blurs after 60s idle, Incognito saves nothing, Panic Wipe erases everything."],
+  ["API key", "Demo data works out of the box. Add your CoinMarketCap key for live data and use Test API Key to check it."],
+] as const;
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return <kbd className="num rounded-md border border-border bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-foreground">{children}</kbd>;
+}
+
+function HelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <Tip text="Help & keyboard shortcuts (?)">
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Help and keyboard shortcuts">
+            <CircleHelp />
+          </Button>
+        </DialogTrigger>
+      </Tip>
+      <DialogContent className="panel max-h-[85vh] overflow-y-auto border-border sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Welcome to CryptoPulser.com</DialogTitle>
+          <DialogDescription>Privacy-first crypto intelligence. Here's what you can do.</DialogDescription>
+        </DialogHeader>
+        <ul className="space-y-3">
+          {FEATURES.map(([t, d]) => (
+            <li key={t} className="text-sm">
+              <div className="font-medium">{t}</div>
+              <div className="text-muted-foreground">{d}</div>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 rounded-xl border border-border bg-secondary/40 p-3">
+          <div className="mb-2 text-sm font-medium">Keyboard shortcuts</div>
+          <dl className="space-y-1.5">
+            {SHORTCUTS.map(([k, d]) => (
+              <div key={k} className="flex items-center justify-between gap-3 text-sm">
+                <dt className="text-muted-foreground">{d}</dt>
+                <dd><Kbd>{k}</Kbd></dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function useShortcuts(onHelp: () => void) {
+  const { settings, update } = useSettings();
+  const stealthRef = useRef(settings.stealth);
+  stealthRef.current = settings.stealth;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === "KeyH") {
+        e.preventDefault();
+        update({ stealth: !stealthRef.current });
+        toast(stealthRef.current ? "Stealth Mode off" : "Stealth Mode on — amounts hidden");
+      } else if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === "KeyL") {
+        e.preventDefault();
+        window.dispatchEvent(new Event(LOCK_EVENT));
+      } else if (!typing && !e.altKey && !e.ctrlKey && !e.metaKey && e.key === "/") {
+        const el = document.getElementById("coin-search");
+        if (el) {
+          e.preventDefault();
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.focus({ preventScroll: true });
+        }
+      } else if (!typing && e.key === "?") {
+        e.preventDefault();
+        onHelp();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [update, onHelp]);
 }
 
 export function AppHeader({ market }: { market: MarketState }) {
   const { settings, update } = useSettings();
+  const [help, setHelp] = useState(false);
+  const openHelp = useCallback(() => setHelp(true), []);
+  useShortcuts(openHelp);
   return (
+    <TooltipProvider delayDuration={250}>
     <header className="sticky top-0 z-40 border-b border-border bg-background/75 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-        <div className="flex items-center gap-4">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+        <div className="flex min-w-0 shrink-0 items-center gap-4">
           <Logo />
           <LiveBadge market={market} />
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex min-w-0 items-center gap-0.5 sm:gap-2">
           <PrivacyBadge />
           <StealthToggle />
           <PanicWipeButton />
@@ -308,7 +456,7 @@ export function AppHeader({ market }: { market: MarketState }) {
             value={settings.currency}
             onValueChange={(v) => isCurrencyCode(v) && update({ currency: v })}
           >
-            <SelectTrigger className="h-8 w-[104px] border-border bg-secondary/60 text-sm" aria-label="Currency">
+            <SelectTrigger className="h-8 w-[84px] sm:w-[104px] border-border bg-secondary/60 text-sm" aria-label="Currency">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -320,9 +468,11 @@ export function AppHeader({ market }: { market: MarketState }) {
               ))}
             </SelectContent>
           </Select>
+          <HelpDialog open={help} onOpenChange={setHelp} />
           <SettingsDialog />
         </div>
       </div>
     </header>
+    </TooltipProvider>
   );
 }

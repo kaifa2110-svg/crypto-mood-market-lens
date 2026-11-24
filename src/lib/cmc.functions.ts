@@ -149,3 +149,18 @@ export const fetchCmcSnapshot = createServerFn({ method: "POST" })
     };
     return { ok: true, snapshot };
   });
+
+/** Verifies a CMC key via /v1/key/info (free, low credit cost). Key is used for this request only. */
+export const testCmcKey = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ apiKey: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const r = await cmcGet<{ plan?: { credit_limit_monthly?: number }; usage?: { current_month?: { credits_left?: number } } }>(
+      "/v1/key/info",
+      data.apiKey.trim(),
+    );
+    if (!r.ok) {
+      const msg = r.status === 401 || r.status === 403 ? "Key rejected by CoinMarketCap — check it was copied correctly." : r.message;
+      return { ok: false as const, message: msg };
+    }
+    return { ok: true as const, creditsLeft: r.data.usage?.current_month?.credits_left ?? null };
+  });

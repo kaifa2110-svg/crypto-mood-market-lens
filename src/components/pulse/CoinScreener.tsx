@@ -1,12 +1,13 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building2, ChevronLeft, ChevronRight, Flame, Gauge, Newspaper, PieChart, Search, Star, TrendingDown, TrendingUp, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building2, ChevronLeft, ChevronRight, Flame, Gauge, Newspaper, PieChart, Download, Search, Star, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AltIndexPanel, ExchangesPanel, NewsPanel, OverviewPanel, VolumePanel } from "@/components/pulse/ScreenerPanels";
+import { downloadCsv } from "@/lib/csv";
 import { toggleWatch, topGainers, topLosers, trending } from "@/lib/insights";
 import { STORAGE_PREFIX, useSettings } from "@/lib/settings";
 
 import { CoinLogo, FlashValue, Pct, Shimmer } from "@/components/pulse/primitives";
-import { formatMoney, type CurrencyCode } from "@/lib/currency";
+import { convertFromUsd, formatMoney, type CurrencyCode } from "@/lib/currency";
 import { buildPricePath, paginate, SCREENER_LIMIT, SCREENER_PAGE_SIZE, type Coin, type MarketSnapshot } from "@/lib/market";
 import { cn } from "@/lib/utils";
 
@@ -265,7 +266,21 @@ export function CoinScreener({
           </h2>
         </div>
         {isTable && (
-        <div className="relative w-full sm:w-64">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+        {tab === "watchlist" && snapshot && rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => downloadCsv(
+              [["Rank", "Name", "Symbol", `Price (${currency})`, "1h %", "24h %", "7d %", `Market Cap (${currency})`],
+                ...rows.map((c) => [c.rank, c.name, c.symbol, +convertFromUsd(c.price, currency).toPrecision(8), +c.change1h.toFixed(2), +c.change24h.toFixed(2), +c.change7d.toFixed(2), Math.round(convertFromUsd(c.marketCap, currency))])],
+              `cryptopulser-watchlist-${new Date().toISOString().slice(0, 10)}.csv`,
+            )}
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-secondary/40 px-3 text-sm font-medium transition-colors hover:border-primary/50 hover:text-primary"
+          >
+            <Download className="size-4" /> <span className="hidden sm:inline">Download</span> CSV
+          </button>
+        )}
+        <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
@@ -273,10 +288,12 @@ export function CoinScreener({
               setQuery(e.target.value);
               setPage(1);
             }}
-            placeholder="Search name or symbol"
+            placeholder="Search name or symbol  ( / )"
             aria-label="Search coins"
+            id="coin-search"
             className="h-10 w-full rounded-xl border border-input bg-secondary/40 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60 focus:ring-2 focus:ring-ring/30"
           />
+        </div>
         </div>
         )}
       </div>

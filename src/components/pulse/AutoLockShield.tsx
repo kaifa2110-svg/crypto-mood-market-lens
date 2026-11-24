@@ -2,6 +2,7 @@ import { Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LOCK_EVENT } from "@/lib/csv";
 import { useSettings } from "@/lib/settings";
 
 export const AUTO_LOCK_MS = 60_000;
@@ -9,12 +10,19 @@ export const AUTO_LOCK_MS = 60_000;
 export function AutoLockShield() {
   const { settings } = useSettings();
   const [locked, setLocked] = useState(false);
+  const [manual, setManual] = useState(false);
 
   useEffect(() => {
-    if (!settings.autoLock) {
-      setLocked(false);
-      return;
-    }
+    const lock = () => {
+      setManual(true);
+      setLocked(true);
+    };
+    window.addEventListener(LOCK_EVENT, lock);
+    return () => window.removeEventListener(LOCK_EVENT, lock);
+  }, []);
+
+  useEffect(() => {
+    if (!settings.autoLock || locked) return;
     let timer = window.setTimeout(() => setLocked(true), AUTO_LOCK_MS);
     const reset = () => {
       window.clearTimeout(timer);
@@ -37,9 +45,12 @@ export function AutoLockShield() {
         </div>
         <div>
           <div className="text-lg font-semibold">View locked</div>
-          <p className="mt-1 text-sm text-muted-foreground">Hidden after 60 seconds of inactivity.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{manual ? "Locked with Alt + L." : "Hidden after 60 seconds of inactivity."}</p>
         </div>
-        <Button onClick={() => setLocked(false)} autoFocus>Unlock View</Button>
+        <Button onClick={() => {
+          setLocked(false);
+          setManual(false);
+        }} autoFocus>Unlock View</Button>
       </div>
     </div>
   );
