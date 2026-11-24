@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Live crypto market dashboard powered by CoinMarketCap: market cap, BTC dominance, Fear & Greed, a top-15 screener and a What-If investment simulator in USD, PKR, EUR, AED and INR.",
+          "Live crypto market dashboard powered by CoinMarketCap: market cap, BTC dominance, Fear & Greed, a top-100 screener and a What-If investment simulator in USD, PKR, EUR, AED and INR.",
       },
       { property: "og:title", content: "CMC Pulse & What-If Simulator" },
       {

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { REFERENCE_1Y_CHANGE } from "./demo-data";
-import { PRIVACY_SYMBOLS, fearGreedLabel, type Coin, type MarketSnapshot } from "./market";
+import { PRIVACY_SYMBOLS, SCREENER_LIMIT, fearGreedLabel, type Coin, type MarketSnapshot } from "./market";
 
 const CMC_BASE = "https://pro-api.coinmarketcap.com";
 
@@ -91,7 +91,7 @@ export const fetchCmcSnapshot = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CmcSnapshotResponse> => {
     const key = data.apiKey;
     const [listings, global, fear, privacy] = await Promise.all([
-      cmcGet<Listing[]>("/v1/cryptocurrency/listings/latest?start=1&limit=15&convert=USD", key),
+      cmcGet<Listing[]>(`/v1/cryptocurrency/listings/latest?start=1&limit=${SCREENER_LIMIT}&convert=USD`, key),
       cmcGet<GlobalData>("/v1/global-metrics/quotes/latest?convert=USD", key),
       cmcGet<FearGreedData>("/v3/fear-and-greed/latest", key),
       cmcGet<Record<string, Listing[]>>(

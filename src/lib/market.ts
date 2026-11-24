@@ -32,7 +32,7 @@ export type FearGreed = {
 
 export type MarketSnapshot = {
   coins: Coin[];
-  /** Privacy-focused coins, fetched by symbol (they sit outside the top 15). */
+  /** Privacy-focused coins, fetched by symbol (most sit outside the top 100). */
   privacyCoins: Coin[];
   global: GlobalMetrics;
   fearGreed: FearGreed;
@@ -49,6 +49,23 @@ export const TIMEFRAMES = [
 ] as const;
 
 export type Timeframe = (typeof TIMEFRAMES)[number];
+
+/** How many coins the Live Screener requests from /v1/cryptocurrency/listings/latest. */
+export const SCREENER_LIMIT = 100;
+/** Rows shown per screener page. */
+export const SCREENER_PAGE_SIZE = 20;
+
+export type Page<T> = { items: T[]; page: number; pageCount: number; from: number; to: number; total: number };
+
+/** Slices `list` into pages; out-of-range pages are clamped. `from`/`to` are 1-based for display. */
+export function paginate<T>(list: T[], page: number, pageSize = SCREENER_PAGE_SIZE): Page<T> {
+  const total = list.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const p = Math.min(Math.max(1, Math.floor(page) || 1), pageCount);
+  const start = (p - 1) * pageSize;
+  const items = list.slice(start, start + pageSize);
+  return { items, page: p, pageCount, total, from: total ? start + 1 : 0, to: start + items.length };
+}
 
 export const PRIVACY_SYMBOLS = ["XMR", "ZEC", "DASH", "ROSE", "SCRT"] as const;
 

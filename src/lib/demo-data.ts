@@ -116,9 +116,9 @@ const FLAT = new Set(["USDT", "USDC", "DAI", "USDE", "FDUSD", "XAUT"]);
 
 /** Deterministic pseudo-random changes so the demo table is stable between refreshes. */
 function expandCoin([id, name, symbol, price, marketCap]: (typeof MORE_COINS)[number]): Base {
-  let seed = id * 2654435761;
+  let seed = Math.imul(id, 2654435761) | 0;
   const rnd = () => {
-    seed = (seed ^ (seed >>> 13)) * 1274126177;
+    seed = Math.imul(seed ^ (seed >>> 13), 1274126177);
     seed ^= seed >>> 16;
     return ((seed >>> 0) % 10000) / 10000 - 0.5; // -0.5 .. 0.5
   };
@@ -136,7 +136,6 @@ function expandCoin([id, name, symbol, price, marketCap]: (typeof MORE_COINS)[nu
   };
 }
 
-const ALL_COINS: Base[] = [...BASE_COINS, ...MORE_COINS.map(expandCoin)].sort((a, b) => b.marketCap - a.marketCap);
 
 const PRIVACY_COINS: Coin[] = [
   { id: 328, rank: 27, name: "Monero", symbol: "XMR", price: 162.4, change1h: 0.18, change24h: 1.42, change7d: 3.9, change30d: 11.6, change90d: 4.2, change1y: 12.0, marketCap: 2.99e9, volume24h: 78e6 },
@@ -145,6 +144,17 @@ const PRIVACY_COINS: Coin[] = [
   { id: 7653, rank: 151, name: "Oasis", symbol: "ROSE", price: 0.0982, change1h: 0.33, change24h: 4.6, change7d: -2.4, change30d: 41.0, change90d: 63.0, change1y: 44.0, marketCap: 0.66e9, volume24h: 41e6 },
   { id: 5604, rank: 312, name: "Secret", symbol: "SCRT", price: 0.524, change1h: 0.05, change24h: -1.3, change7d: 6.1, change30d: 28.0, change90d: 70.0, change1y: 31.0, marketCap: 0.15e9, volume24h: 9e6 },
 ];
+
+// Privacy coins that sit inside the top 100 reuse their hand-written figures so both tabs agree.
+const ALL_COINS: Base[] = [
+  ...BASE_COINS,
+  ...MORE_COINS.map((row) => {
+    const known = PRIVACY_COINS.find((p) => p.symbol === row[2]);
+    if (!known) return expandCoin(row);
+    const { rank: _rank, ...rest } = known;
+    return rest;
+  }),
+].sort((a, b) => b.marketCap - a.marketCap);
 
 export const REFERENCE_1Y_CHANGE: Record<string, number> = Object.fromEntries(
   BASE_COINS.map((c) => [c.symbol, c.change1y ?? 0]),
@@ -171,6 +181,8 @@ export function getDemoSnapshot(): MarketSnapshot {
   const btc = coins[0]!;
   const fg = Math.round(72 + (Math.random() - 0.5) * 2);
   const privacyCoins: Coin[] = PRIVACY_COINS.map((c) => {
+    const inTop = coins.find((x) => x.symbol === c.symbol);
+    if (inTop) return inTop;
     const m = drift();
     const pct = (m - 1) * 100;
     return { ...c, price: c.price * m, marketCap: c.marketCap * m, change1h: c.change1h + pct, change24h: c.change24h + pct };

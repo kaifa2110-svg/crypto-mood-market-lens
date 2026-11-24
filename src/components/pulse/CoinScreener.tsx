@@ -1,9 +1,9 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, ShieldHalf, Trophy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, ShieldHalf, Trophy } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 
 import { CoinLogo, FlashValue, Pct, Shimmer } from "@/components/pulse/primitives";
 import { formatMoney, type CurrencyCode } from "@/lib/currency";
-import { buildPricePath, type Coin, type MarketSnapshot } from "@/lib/market";
+import { buildPricePath, paginate, SCREENER_LIMIT, SCREENER_PAGE_SIZE, type Coin, type MarketSnapshot } from "@/lib/market";
 import { cn } from "@/lib/utils";
 
 type SortKey = "rank" | "name" | "price" | "change1h" | "change24h" | "change7d" | "marketCap";
@@ -74,6 +74,90 @@ function SortHeader({
   );
 }
 
+/** Page numbers to show, with "gap" markers, e.g. 1 … 4 5 6 … 10. */
+function pageList(page: number, count: number): (number | "gap")[] {
+  if (count <= 7) return Array.from({ length: count }, (_, i) => i + 1);
+  const set = new Set([1, count, page - 1, page, page + 1].filter((p) => p >= 1 && p <= count));
+  const sorted = [...set].sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  sorted.forEach((p, i) => {
+    if (i && p - (sorted[i - 1] ?? p) > 1) out.push("gap");
+    out.push(p);
+  });
+  return out;
+}
+
+function Pager({
+  page,
+  pageCount,
+  from,
+  to,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  from: number;
+  to: number;
+  total: number;
+  onPage: (p: number) => void;
+}) {
+  const btn =
+    "inline-flex h-9 min-w-9 items-center justify-center rounded-lg border border-transparent px-2.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-35";
+  return (
+    <nav
+      aria-label="Screener pages"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3.5 sm:px-6"
+    >
+      <p className="num text-xs text-muted-foreground">
+        Showing <span className="text-foreground">{from}–{to}</span> of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPage(page - 1)}
+          disabled={page <= 1}
+          aria-label="Previous page"
+          className={cn(btn, "text-muted-foreground hover:border-border hover:text-foreground")}
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        {pageList(page, pageCount).map((p, i) =>
+          p === "gap" ? (
+            <span key={`gap-${i}`} className="px-1 text-muted-foreground">…</span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPage(p)}
+              aria-label={`Page ${p}`}
+              aria-current={p === page ? "page" : undefined}
+              className={cn(
+                btn,
+                "num",
+                p === page
+                  ? "border-primary/40 bg-primary/15 text-primary shadow-glow"
+                  : "text-muted-foreground hover:border-border hover:text-foreground",
+              )}
+            >
+              {p}
+            </button>
+          ),
+        )}
+        <button
+          type="button"
+          onClick={() => onPage(page + 1)}
+          disabled={page >= pageCount}
+          aria-label="Next page"
+          className={cn(btn, "text-muted-foreground hover:border-border hover:text-foreground")}
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 export function CoinScreener({
   snapshot,
   currency,
@@ -84,13 +168,17 @@ export function CoinScreener({
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"top" | "privacy">("top");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "rank", dir: "asc" });
+  const [page, setPage] = useState(1);
+  const sectionRef = useRef<HTMLElement>(null);
 
-  const onSort = (key: SortKey) =>
+  const onSort = (key: SortKey) => {
+    setPage(1);
     setSort((s) =>
       s.key === key
         ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
         : { key, dir: key === "rank" || key === "name" ? "asc" : "desc" },
     );
+  };
 
   const rows = useMemo(() => {
     if (!snapshot) return [];
@@ -106,18 +194,27 @@ export function CoinScreener({
     });
   }, [snapshot, query, sort, tab]);
 
+  const view = paginate(rows, page, SCREENER_PAGE_SIZE);
+
+  const goToPage = (p: number) => {
+    setPage(p);
+    // Keep the table header in view when paging from the bottom of a long list.
+    const el = sectionRef.current;
+    if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <section className="panel overflow-hidden animate-fade-up" style={{ animationDelay: "200ms" }}>
+    <section ref={sectionRef} className="panel scroll-mt-20 overflow-hidden animate-fade-up" style={{ animationDelay: "200ms" }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.16em] text-primary">Live Screener</div>
           <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-            {tab === "privacy" ? "Privacy coins" : "Top 15 cryptocurrencies"}
+            {tab === "privacy" ? "Privacy coins" : `Top ${SCREENER_LIMIT} cryptocurrencies`}
           </h2>
         </div>
         <div role="tablist" aria-label="Screener filter" className="flex rounded-xl border border-border bg-secondary/40 p-1">
           {([
-            { id: "top", label: "Top 15", icon: Trophy },
+            { id: "top", label: `Top ${SCREENER_LIMIT}`, icon: Trophy },
             { id: "privacy", label: "Privacy Coins", icon: ShieldHalf },
           ] as const).map((t) => (
             <button
@@ -125,7 +222,10 @@ export function CoinScreener({
               type="button"
               role="tab"
               aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setTab(t.id);
+                setPage(1);
+              }}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
                 tab === t.id
@@ -142,7 +242,10 @@ export function CoinScreener({
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder="Search name or symbol"
             aria-label="Search coins"
             className="h-10 w-full rounded-xl border border-input bg-secondary/40 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60 focus:ring-2 focus:ring-ring/30"
@@ -164,7 +267,7 @@ export function CoinScreener({
               <th className="px-3 py-3 pr-6 text-right font-medium">Last 7 days</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody key={`${tab}-${view.page}`} className={cn(snapshot && "animate-fade-in")}>
             {!snapshot
               ? Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/60">
@@ -173,7 +276,7 @@ export function CoinScreener({
                     </td>
                   </tr>
                 ))
-              : rows.map((c) => (
+              : view.items.map((c) => (
                   <tr key={c.id} className="group border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40">
                     <td className="num px-3 py-3 pl-6 text-muted-foreground">{c.rank}</td>
                     <td className="px-3 py-3">
@@ -209,6 +312,16 @@ export function CoinScreener({
           </tbody>
         </table>
       </div>
+      {snapshot && view.pageCount > 1 && (
+        <Pager
+          page={view.page}
+          pageCount={view.pageCount}
+          from={view.from}
+          to={view.to}
+          total={view.total}
+          onPage={goToPage}
+        />
+      )}
     </section>
   );
 }
