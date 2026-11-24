@@ -51,9 +51,9 @@ export const TIMEFRAMES = [
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
 /** How many coins the Live Screener requests from /v1/cryptocurrency/listings/latest. */
-export const SCREENER_LIMIT = 100;
+export const SCREENER_LIMIT = 1000;
 /** Rows shown per screener page. */
-export const SCREENER_PAGE_SIZE = 20;
+export const SCREENER_PAGE_SIZE = 25;
 
 export type Page<T> = { items: T[]; page: number; pageCount: number; from: number; to: number; total: number };
 

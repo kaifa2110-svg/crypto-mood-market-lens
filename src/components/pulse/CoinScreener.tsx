@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building2, ChevronLeft, Che
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AltIndexPanel, ExchangesPanel, NewsPanel, OverviewPanel, VolumePanel } from "@/components/pulse/ScreenerPanels";
+import { CoinDetailModal } from "@/components/pulse/CoinDetailModal";
 import { downloadCsv } from "@/lib/csv";
 import { toggleWatch, topGainers, topLosers, trending } from "@/lib/insights";
 import { STORAGE_PREFIX, useSettings } from "@/lib/settings";
@@ -188,6 +189,7 @@ export function CoinScreener({
 }) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<TabId>("top");
+  const [detail, setDetail] = useState<Coin | null>(null);
   const { wipeCount } = useSettings();
   const [watch, setWatch] = useState<number[]>([]);
   useEffect(() => {
@@ -359,12 +361,19 @@ export function CoinScreener({
                   </tr>
                 ))
               : view.items.map((c) => (
-                  <tr key={c.id} className="group border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40">
+                  <tr
+                    key={c.id}
+                    onClick={() => setDetail(c)}
+                    className="group cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40"
+                  >
                     <td className="num px-3 py-3 pl-4 text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => onStar(c.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStar(c.id);
+                          }}
                           aria-label={watch.includes(c.id) ? `Remove ${c.name} from watchlist` : `Add ${c.name} to watchlist`}
                           aria-pressed={watch.includes(c.id)}
                           className="rounded p-0.5 transition-transform hover:scale-110"
@@ -418,6 +427,7 @@ export function CoinScreener({
         />
       )}
       </>)}
+      <CoinDetailModal coin={detail} currency={currency} onClose={() => setDetail(null)} />
     </section>
   );
 }

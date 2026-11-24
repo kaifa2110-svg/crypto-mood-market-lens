@@ -30,18 +30,41 @@ function Tip({ text, children }: { text: string; children: React.ReactElement })
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent className="max-w-60 text-xs">{text}</TooltipContent>
+      <TooltipContent side="bottom" align="end" sideOffset={8} collisionPadding={12} className="max-w-60 text-xs">
+        {text}
+      </TooltipContent>
     </Tooltip>
+  );
+}
+
+function PulsarMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <defs>
+        <radialGradient id="pulsar-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="35%" stopColor="#a5f3fc" />
+          <stop offset="100%" stopColor="#22d3ee" />
+        </radialGradient>
+        <linearGradient id="pulsar-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#c084fc" />
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="20" fill="none" stroke="url(#pulsar-ring)" strokeWidth="3" opacity="0.9" />
+      <circle cx="32" cy="32" r="26" fill="none" stroke="#22d3ee" strokeWidth="1.2" opacity="0.45" />
+      <ellipse cx="32" cy="32" rx="27" ry="10" fill="none" stroke="#c084fc" strokeWidth="1.6" opacity="0.55" transform="rotate(-24 32 32)" />
+      <circle cx="32" cy="32" r="9" fill="url(#pulsar-core)" />
+      <circle cx="32" cy="32" r="3.2" fill="#ffffff" />
+    </svg>
   );
 }
 
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative grid size-9 place-items-center rounded-xl bg-gradient-primary shadow-glow">
-        <svg viewBox="0 0 24 24" className="size-5 stroke-primary-foreground" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M2 12h4l3-7 4 14 3-7h6" />
-        </svg>
+      <div className="relative grid size-10 shrink-0 place-items-center rounded-full bg-background shadow-glow ring-1 ring-primary/30">
+        <PulsarMark className="size-9" />
       </div>
       <div className="leading-tight">
         <div className="hidden text-sm font-semibold tracking-tight sm:block sm:text-base">
@@ -344,7 +367,7 @@ const SHORTCUTS = [
 const FEATURES = [
   ["Market overview", "Global market cap, 24h volume, BTC dominance and the Fear & Greed gauge."],
   ["What-If Simulator", "Pick a coin, amount and date to see what your investment would be worth today. Download the result as CSV."],
-  ["Live Screener", "Top 100 coins plus Trending, Watchlist (tap the star), sectors, gainers/losers, Altcoin Index, volume, exchanges and news."],
+  ["Live Screener", "Top 1000 coins plus Trending, Watchlist (tap the star), sectors, gainers/losers, Altcoin Index, volume, exchanges and news."],
   ["Currency switcher", "Show every figure in USD, PKR, EUR, AED or INR."],
   ["Ask Crypto Pulser AI", "Ask questions about the data on screen from the button at the bottom right."],
   ["Privacy tools", "Stealth hides amounts, Auto-Lock blurs after 60s idle, Incognito saves nothing, Panic Wipe erases everything."],

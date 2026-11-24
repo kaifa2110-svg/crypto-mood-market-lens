@@ -156,6 +156,44 @@ const ALL_COINS: Base[] = [
   }),
 ].sort((a, b) => b.marketCap - a.marketCap);
 
+// Pad demo mode out to the same 1,000 rows live mode returns: deterministic synthetic
+// long-tail coins below the ~hand-written top 100.
+function syntheticCoins(count: number): Base[] {
+  const out: Base[] = [];
+  for (let i = 0; i < count; i++) {
+    const n = i + 1;
+    const id = 900000 + n;
+    const symbol = `D${(n * 7919 % 46656).toString(36).toUpperCase().padStart(3, "0")}`;
+    let seed = Math.imul(id, 374761393) | 0;
+    const rnd = () => {
+      seed = Math.imul(seed ^ (seed >>> 13), 1274126177);
+      seed ^= seed >>> 16;
+      return ((seed >>> 0) % 10000) / 10000;
+    };
+    // Cap positions decay smoothly from ~$100M to ~$60k.
+    const marketCap = 1.05e8 * Math.pow(60000 / 1.05e8, n / count) * (0.85 + rnd() * 0.3);
+    const price = marketCap / (5e5 + rnd() * 5e8);
+    out.push({
+      id,
+      name: `Demo Token ${n}`,
+      symbol,
+      price,
+      marketCap,
+      change1h: Math.round((rnd() - 0.5) * 2 * 100) / 100,
+      change24h: Math.round((rnd() * 12 - 5) * 100) / 100,
+      change7d: Math.round((rnd() * 40 - 16) * 100) / 100,
+      change30d: Math.round((rnd() * 120 - 40) * 100) / 100,
+      change90d: Math.round((rnd() * 240 - 80) * 100) / 100,
+      change1y: Math.round((rnd() * 360 - 120) * 100) / 100,
+      volume24h: marketCap * (0.005 + rnd() * 0.09),
+    });
+  }
+  return out;
+}
+
+const SYNTHETIC = syntheticCoins(Math.max(0, 1000 - ALL_COINS.length));
+const FULL_DEMO_LIST: Base[] = [...ALL_COINS, ...SYNTHETIC];
+
 export const REFERENCE_1Y_CHANGE: Record<string, number> = Object.fromEntries(
   BASE_COINS.map((c) => [c.symbol, c.change1y ?? 0]),
 );
@@ -163,7 +201,7 @@ export const REFERENCE_1Y_CHANGE: Record<string, number> = Object.fromEntries(
 /** Fresh demo snapshot with tiny random drift so the dashboard feels live. */
 export function getDemoSnapshot(): MarketSnapshot {
   const drift = () => 1 + (Math.random() - 0.5) * 0.004;
-  const coins: Coin[] = ALL_COINS.map((c, i) => {
+  const coins: Coin[] = FULL_DEMO_LIST.map((c, i) => {
     const stable = FLAT.has(c.symbol);
     const m = stable ? 1 + (Math.random() - 0.5) * 0.0002 : drift();
     const pct = (m - 1) * 100;
