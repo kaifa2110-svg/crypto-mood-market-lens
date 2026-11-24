@@ -12,13 +12,13 @@ import { useSettings } from "@/lib/settings";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "CMC Pulse & What-If Simulator — Live Crypto Analytics" },
+      { title: "Crypto Mood Market Lens — Live Crypto Analytics" },
       {
         name: "description",
         content:
           "Live crypto market dashboard powered by CoinMarketCap: market cap, BTC dominance, Fear & Greed, a top-100 screener and a What-If investment simulator in USD, PKR, EUR, AED and INR.",
       },
-      { property: "og:title", content: "CMC Pulse & What-If Simulator" },
+      { property: "og:title", content: "Crypto Mood Market Lens" },
       {
         property: "og:description",
         content: "See the crypto market's pulse and find out what your past investment would be worth today.",

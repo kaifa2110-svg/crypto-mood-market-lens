@@ -82,9 +82,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "CMC Pulse & What-If Simulator" },
+      { title: "Crypto Mood Market Lens" },
       { name: "description", content: "Live crypto analytics and What-If investment simulator powered by CoinMarketCap." },
-            { property: "og:title", content: "CMC Pulse & What-If Simulator" },
+            { property: "og:title", content: "Crypto Mood Market Lens" },
       { property: "og:description", content: "Live crypto analytics and What-If investment simulator powered by CoinMarketCap." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

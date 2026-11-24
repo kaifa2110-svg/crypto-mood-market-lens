@@ -32,11 +32,10 @@ function Logo() {
       </div>
       <div className="leading-tight">
         <div className="hidden text-sm font-semibold tracking-tight sm:block sm:text-base">
-          CMC Pulse <span className="text-muted-foreground">&</span>{" "}
-          <span className="text-gradient">What-If</span>
+          Crypto Mood <span className="text-gradient">Market Lens</span>
         </div>
         <div className="hidden text-[11px] uppercase tracking-[0.18em] text-muted-foreground lg:block">
-          Simulator · CoinMarketCap API
+          Powered by CoinMarketCap API
         </div>
       </div>
     </div>
