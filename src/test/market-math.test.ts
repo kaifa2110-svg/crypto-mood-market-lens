@@ -40,3 +40,31 @@ describe("what-if calculator", () => {
     expect(path.at(-1)?.price).toBe(100);
   });
 });
+
+describe("privacy features", () => {
+  it("panic wipe removes the saved API key and calculation history only", async () => {
+    const { wipeLocalData } = await import("@/lib/settings");
+    localStorage.setItem("cmc-pulse:settings", JSON.stringify({ apiKey: "secret-key" }));
+    localStorage.setItem("cmc-pulse:history", "[]");
+    localStorage.setItem("other-app", "keep");
+    expect(wipeLocalData(localStorage)).toBe(2);
+    expect(localStorage.getItem("cmc-pulse:settings")).toBeNull();
+    expect(localStorage.getItem("cmc-pulse:history")).toBeNull();
+    expect(localStorage.getItem("other-app")).toBe("keep");
+  });
+
+  it("keeps at most 5 recent simulations, newest first, without duplicates", async () => {
+    const { addToHistory } = await import("@/lib/settings");
+    let h: import("@/lib/settings").Simulation[] = [];
+    for (let i = 0; i < 7; i++) h = addToHistory(h, { symbol: "BTC", timeframe: "7d", amountUsd: i + 1, at: String(i) });
+    h = addToHistory(h, { symbol: "BTC", timeframe: "7d", amountUsd: 7, at: "again" });
+    expect(h).toHaveLength(5);
+    expect(h[0]?.at).toBe("again");
+    expect(h.filter((x) => x.amountUsd === 7)).toHaveLength(1);
+  });
+
+  it("privacy filter tracks Monero, Zcash, Dash and Oasis", async () => {
+    const { PRIVACY_SYMBOLS } = await import("@/lib/market");
+    expect(PRIVACY_SYMBOLS).toEqual(expect.arrayContaining(["XMR", "ZEC", "DASH", "ROSE"]));
+  });
+});

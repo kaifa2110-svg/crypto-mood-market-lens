@@ -1,4 +1,5 @@
-import { Eye, EyeOff, KeyRound, RefreshCw, Settings2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff, KeyRound, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { MarketState } from "@/hooks/use-market";
@@ -29,11 +31,11 @@ function Logo() {
         </svg>
       </div>
       <div className="leading-tight">
-        <div className="text-sm font-semibold tracking-tight sm:text-base">
+        <div className="hidden text-sm font-semibold tracking-tight sm:block sm:text-base">
           CMC Pulse <span className="text-muted-foreground">&</span>{" "}
           <span className="text-gradient">What-If</span>
         </div>
-        <div className="hidden text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
+        <div className="hidden text-[11px] uppercase tracking-[0.18em] text-muted-foreground lg:block">
           Simulator · CoinMarketCap API
         </div>
       </div>
@@ -47,7 +49,7 @@ function LiveBadge({ market }: { market: MarketState }) {
   return (
     <div
       className={cn(
-        "hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium md:inline-flex",
+        "hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium lg:inline-flex",
         status === "live" && "border-gain/30 bg-gain/10 text-gain",
         status === "demo" && "border-primary/25 bg-primary/10 text-primary",
         status === "error" && "border-highlight/30 bg-highlight/10 text-highlight",
@@ -85,7 +87,7 @@ function SettingsDialog() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2 border-border bg-secondary/60">
           {settings.apiKey ? <KeyRound className="text-primary" /> : <Settings2 />}
-          <span className="hidden sm:inline">{settings.apiKey ? "API key set" : "API Key"}</span>
+          <span className="hidden md:inline">{settings.apiKey ? "API key set" : "API Key"}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="panel border-border sm:max-w-md">
@@ -176,6 +178,85 @@ function SettingsDialog() {
   );
 }
 
+function PrivacyBadge() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+          aria-label="Privacy details"
+        >
+          <ShieldCheck className="size-4" />
+          <span className="hidden xl:inline">Local & Private</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="panel w-80 border-border text-sm">
+        <div className="flex items-center gap-2 font-semibold">
+          <ShieldCheck className="size-4 text-primary" /> Local & Private
+        </div>
+        <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+          <li>• Your API key, settings and calculation history are saved only in this browser.</li>
+          <li>• No accounts, no cookies, no analytics or tracking in this app.</li>
+          <li>
+            • In live mode your key is relayed straight to CoinMarketCap to fetch prices (they block
+            direct browser calls) and is never saved on any server.
+          </li>
+        </ul>
+        <PanicWipeButton variant="full" />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function PanicWipeButton({ variant = "icon" }: { variant?: "icon" | "full" }) {
+  const { wipe } = useSettings();
+  const queryClient = useQueryClient();
+  const onWipe = () => {
+    wipe();
+    // Drop cached live responses (their cache key includes the API key).
+    queryClient.removeQueries({ queryKey: ["cmc-snapshot"] });
+    toast.success("Wiped: API key and calculation history erased from this browser");
+  };
+  if (variant === "full") {
+    return (
+      <Button variant="destructive" size="sm" className="mt-4 w-full" onClick={onWipe}>
+        <Trash2 /> Panic Wipe — clear all data
+      </Button>
+    );
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={onWipe}
+      aria-label="Panic wipe: clear API key and history"
+      title="Panic Wipe — clear API key & history"
+      className="text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+    >
+      <Trash2 />
+    </Button>
+  );
+}
+
+function StealthToggle() {
+  const { settings, update } = useSettings();
+  const on = settings.stealth;
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-pressed={on}
+      aria-label={on ? "Turn off stealth mode" : "Turn on stealth mode"}
+      title={on ? "Stealth mode on — amounts hidden" : "Stealth mode — hide amounts"}
+      onClick={() => update({ stealth: !on })}
+      className={cn(on && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary")}
+    >
+      {on ? <EyeOff /> : <Eye />}
+    </Button>
+  );
+}
+
 export function AppHeader({ market }: { market: MarketState }) {
   const { settings, update } = useSettings();
   return (
@@ -185,13 +266,16 @@ export function AppHeader({ market }: { market: MarketState }) {
           <Logo />
           <LiveBadge market={market} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <PrivacyBadge />
+          <StealthToggle />
+          <PanicWipeButton />
           <Button
             variant="ghost"
             size="icon"
             onClick={market.refetch}
             aria-label="Refresh data"
-            className="hidden sm:inline-flex"
+            className="hidden md:inline-flex"
           >
             <RefreshCw className={cn(market.isFetching && "animate-spin")} />
           </Button>

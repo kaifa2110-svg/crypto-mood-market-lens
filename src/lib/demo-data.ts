@@ -22,6 +22,14 @@ const BASE_COINS: Base[] = [
   { id: 20947, name: "Sui", symbol: "SUI", price: 3.62, change1h: 0.95, change24h: 7.8, change7d: 12.5, change30d: 72.0, change90d: 510.0, change1y: 520.0, marketCap: 10.5e9, volume24h: 1.6e9 },
 ];
 
+const PRIVACY_COINS: Coin[] = [
+  { id: 328, rank: 27, name: "Monero", symbol: "XMR", price: 162.4, change1h: 0.18, change24h: 1.42, change7d: 3.9, change30d: 11.6, change90d: 4.2, change1y: 12.0, marketCap: 2.99e9, volume24h: 78e6 },
+  { id: 1437, rank: 98, name: "Zcash", symbol: "ZEC", price: 52.3, change1h: 0.41, change24h: 3.8, change7d: 12.4, change30d: 38.0, change90d: 61.0, change1y: 85.0, marketCap: 0.85e9, volume24h: 112e6 },
+  { id: 131, rank: 132, name: "Dash", symbol: "DASH", price: 38.12, change1h: -0.11, change24h: 2.1, change7d: 9.6, change30d: 52.0, change90d: 48.0, change1y: 22.0, marketCap: 0.46e9, volume24h: 64e6 },
+  { id: 7653, rank: 151, name: "Oasis", symbol: "ROSE", price: 0.0982, change1h: 0.33, change24h: 4.6, change7d: -2.4, change30d: 41.0, change90d: 63.0, change1y: 44.0, marketCap: 0.66e9, volume24h: 41e6 },
+  { id: 5604, rank: 312, name: "Secret", symbol: "SCRT", price: 0.524, change1h: 0.05, change24h: -1.3, change7d: 6.1, change30d: 28.0, change90d: 70.0, change1y: 31.0, marketCap: 0.15e9, volume24h: 9e6 },
+];
+
 export const REFERENCE_1Y_CHANGE: Record<string, number> = Object.fromEntries(
   BASE_COINS.map((c) => [c.symbol, c.change1y ?? 0]),
 );
@@ -46,8 +54,14 @@ export function getDemoSnapshot(): MarketSnapshot {
   const totalMarketCap = 3.41e12 * drift();
   const btc = coins[0]!;
   const fg = Math.round(72 + (Math.random() - 0.5) * 2);
+  const privacyCoins: Coin[] = PRIVACY_COINS.map((c) => {
+    const m = drift();
+    const pct = (m - 1) * 100;
+    return { ...c, price: c.price * m, marketCap: c.marketCap * m, change1h: c.change1h + pct, change24h: c.change24h + pct };
+  });
   return {
     coins,
+    privacyCoins,
     global: {
       totalMarketCap,
       totalVolume24h: 168.4e9 * drift(),

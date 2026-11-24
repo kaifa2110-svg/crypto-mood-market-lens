@@ -32,6 +32,8 @@ export type FearGreed = {
 
 export type MarketSnapshot = {
   coins: Coin[];
+  /** Privacy-focused coins, fetched by symbol (they sit outside the top 15). */
+  privacyCoins: Coin[];
   global: GlobalMetrics;
   fearGreed: FearGreed;
   source: "live" | "demo";
@@ -47,6 +49,8 @@ export const TIMEFRAMES = [
 ] as const;
 
 export type Timeframe = (typeof TIMEFRAMES)[number];
+
+export const PRIVACY_SYMBOLS = ["XMR", "ZEC", "DASH", "ROSE", "SCRT"] as const;
 
 export const WHAT_IF_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"] as const;
 

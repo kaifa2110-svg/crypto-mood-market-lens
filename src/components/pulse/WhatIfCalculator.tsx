@@ -1,9 +1,9 @@
 import { subDays, subHours, format } from "date-fns";
-import { Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { History, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import { CoinLogo, Shimmer } from "@/components/pulse/primitives";
+import { CoinLogo, Sensitive, Shimmer } from "@/components/pulse/primitives";
 import { useAnimatedNumber } from "@/hooks/use-animated-number";
 import {
   convertFromUsd,
@@ -22,9 +22,19 @@ import {
   type MarketSnapshot,
   type Timeframe,
 } from "@/lib/market";
+import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 const PRESETS_USD = [100, 500, 1000, 5000];
+type WhatIfSymbol = (typeof WHAT_IF_SYMBOLS)[number];
+const DEFAULT_INPUT = { symbol: "BTC" as WhatIfSymbol, tf: "1y" as Timeframe["id"], amountUsd: 100 };
+
+function isWhatIfSymbol(v: string): v is WhatIfSymbol {
+  return (WHAT_IF_SYMBOLS as readonly string[]).includes(v);
+}
+function isTimeframeId(v: string): v is Timeframe["id"] {
+  return TIMEFRAMES.some((t) => t.id === v);
+}
 
 function roundForInput(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "";
@@ -38,11 +48,56 @@ export function WhatIfCalculator({
   snapshot: MarketSnapshot | undefined;
   currency: CurrencyCode;
 }) {
-  const [symbol, setSymbol] = useState<(typeof WHAT_IF_SYMBOLS)[number]>("BTC");
-  const [tfId, setTfId] = useState<Timeframe["id"]>("1y");
-  const [amountUsd, setAmountUsd] = useState(100);
+  const { settings, hydrated, history, recordSimulation, wipeCount } = useSettings();
+  const stealth = settings.stealth;
+  const [symbol, setSymbolState] = useState<WhatIfSymbol>(DEFAULT_INPUT.symbol);
+  const [tfId, setTfIdState] = useState<Timeframe["id"]>(DEFAULT_INPUT.tf);
+  const [amountUsd, setAmountUsd] = useState(DEFAULT_INPUT.amountUsd);
   const [draft, setDraft] = useState("100");
   const prevCurrency = useRef(currency);
+  const interacted = useRef(false);
+  const restored = useRef(false);
+
+  const setSymbol = (s: WhatIfSymbol) => {
+    interacted.current = true;
+    setSymbolState(s);
+  };
+  const setTfId = (t: Timeframe["id"]) => {
+    interacted.current = true;
+    setTfIdState(t);
+  };
+  const loadInput = (sym: WhatIfSymbol, tf: Timeframe["id"], usd: number) => {
+    setSymbolState(sym);
+    setTfIdState(tf);
+    setAmountUsd(usd);
+    setDraft(roundForInput(convertFromUsd(usd, currency)));
+  };
+
+  // Restore the most recent simulation once saved history is loaded.
+  useEffect(() => {
+    if (!hydrated || restored.current) return;
+    restored.current = true;
+    const last = history[0];
+    if (last && isWhatIfSymbol(last.symbol) && isTimeframeId(last.timeframe)) {
+      loadInput(last.symbol, last.timeframe, last.amountUsd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  // Panic wipe: reset the calculator to its defaults.
+  useEffect(() => {
+    if (wipeCount === 0) return;
+    interacted.current = false;
+    loadInput(DEFAULT_INPUT.symbol, DEFAULT_INPUT.tf, DEFAULT_INPUT.amountUsd);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wipeCount]);
+
+  // Save to local history once the user's inputs settle.
+  useEffect(() => {
+    if (!interacted.current || !(amountUsd > 0)) return;
+    const t = setTimeout(() => recordSimulation({ symbol, timeframe: tfId, amountUsd }), 1200);
+    return () => clearTimeout(t);
+  }, [symbol, tfId, amountUsd, recordSimulation]);
 
   // Keep the same real value when the user switches currency (e.g. $100 → ₨28,140).
   useEffect(() => {
@@ -126,10 +181,13 @@ export function WhatIfCalculator({
               <span className="num text-lg text-muted-foreground">{sym}</span>
               <input
                 id="amount"
+                type={stealth ? "password" : "text"}
+                autoComplete="off"
                 inputMode="decimal"
                 value={draft}
                 onChange={(e) => {
                   const v = e.target.value.replace(/[^0-9.]/g, "");
+                  interacted.current = true;
                   setDraft(v);
                   const n = parseFloat(v);
                   setAmountUsd(Number.isFinite(n) ? convertToUsd(n, currency) : 0);
@@ -146,6 +204,7 @@ export function WhatIfCalculator({
                     key={usd}
                     type="button"
                     onClick={() => {
+                      interacted.current = true;
                       setDraft(String(local));
                       setAmountUsd(convertToUsd(local, currency));
                     }}
@@ -178,6 +237,34 @@ export function WhatIfCalculator({
               ))}
             </div>
           </div>
+
+          {history.length > 0 && (
+            <div>
+              <div className="mb-2.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <History className="size-3.5" /> Recent simulations
+                <span className="text-muted-foreground/60">· saved in this browser</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {history.map((h) => {
+                  const tfShort = TIMEFRAMES.find((t) => t.id === h.timeframe)?.short ?? h.timeframe;
+                  return (
+                    <button
+                      key={h.at}
+                      type="button"
+                      onClick={() => {
+                        if (isWhatIfSymbol(h.symbol) && isTimeframeId(h.timeframe)) {
+                          loadInput(h.symbol, h.timeframe, h.amountUsd);
+                        }
+                      }}
+                      className="num rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                    >
+                      {h.symbol} · {tfShort} · <Sensitive>{formatMoney(h.amountUsd, currency, { compact: true })}</Sensitive>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Result */}
@@ -197,10 +284,11 @@ export function WhatIfCalculator({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="text-sm text-muted-foreground">
-                    {formatMoney(amountUsd, currency)} in {coin.name} {tf.label.toLowerCase()} would be worth
+                    <Sensitive>{formatMoney(amountUsd, currency)}</Sensitive> in {coin.name}{" "}
+                    {tf.label.toLowerCase()} would be worth
                   </div>
                   <div className="num mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
-                    {formatMoney(animatedValue, currency)}
+                    <Sensitive>{formatMoney(animatedValue, currency)}</Sensitive>
                   </div>
                 </div>
                 <div
@@ -211,16 +299,20 @@ export function WhatIfCalculator({
                 >
                   {gain ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />}
                   <div>
-                    <div className="num text-lg font-semibold leading-tight">{formatPercent(result.profitPct)}</div>
+                    <div className="num text-lg font-semibold leading-tight">
+                      <Sensitive>{formatPercent(result.profitPct)}</Sensitive>
+                    </div>
                     <div className="num text-xs opacity-80">
-                      {gain ? "+" : "−"}
-                      {formatMoney(Math.abs(result.profitUsd), currency)}
+                      <Sensitive>
+                        {gain ? "+" : "−"}
+                        {formatMoney(Math.abs(result.profitUsd), currency)}
+                      </Sensitive>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 h-[260px] w-full">
+              <div className={cn("mt-6 h-[260px] w-full transition-[filter]", stealth && "stealth-blur")} aria-hidden={stealth}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart key={`${symbol}-${tf.id}`} data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
                     <defs>
@@ -241,7 +333,7 @@ export function WhatIfCalculator({
                       minTickGap={32}
                     />
                     <YAxis
-                      tickFormatter={(v: number) => formatMoney(v, currency, { compact: true, whole: true })}
+                      tickFormatter={(v: number) => (stealth ? "•••" : formatMoney(v, currency, { compact: true, whole: true }))}
                       tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
@@ -258,7 +350,7 @@ export function WhatIfCalculator({
                       cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
                       content={({ active, payload }) => {
                         const p = payload?.[0]?.payload as { ts: number; value: number } | undefined;
-                        if (!active || !p) return null;
+                        if (!active || !p || stealth) return null;
                         return (
                           <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
                             <div className="text-muted-foreground">{format(p.ts, "MMM d, yyyy")}</div>
@@ -283,8 +375,8 @@ export function WhatIfCalculator({
                 {[
                   ["Price then", formatMoney(pastPrice ?? 0, currency)],
                   ["Price now", formatMoney(coin.price, currency)],
-                  ["Coins bought", `${result.units < 1 ? result.units.toPrecision(4) : result.units.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${coin.symbol}`],
-                  ["Multiplier", `${(result.valueUsd / amountUsd).toFixed(2)}×`],
+                  ["Coins bought", stealth ? "••••••" : `${result.units < 1 ? result.units.toPrecision(4) : result.units.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${coin.symbol}`],
+                  ["Multiplier", stealth ? "••••" : `${(result.valueUsd / amountUsd).toFixed(2)}×`],
                 ].map(([k, v]) => (
                   <div key={k} className="rounded-xl border border-border bg-secondary/30 px-3 py-2.5">
                     <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{k}</dt>

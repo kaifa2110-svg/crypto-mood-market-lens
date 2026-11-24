@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { coinLogo } from "@/lib/market";
 import { formatPercent } from "@/lib/currency";
+import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 export function Pct({ value, className }: { value: number; className?: string }) {
@@ -72,6 +73,17 @@ export function FlashValue({ value, children }: { value: number; children: React
       )}
     >
       {children}
+    </span>
+  );
+}
+
+/** Masks its content as •••••• while Stealth Balance Mode is on. */
+export function Sensitive({ children, className }: { children: React.ReactNode; className?: string }) {
+  const { settings } = useSettings();
+  if (!settings.stealth) return <>{children}</>;
+  return (
+    <span className={cn("select-none tracking-[0.2em]", className)} aria-label="Hidden by stealth mode">
+      ••••••
     </span>
   );
 }

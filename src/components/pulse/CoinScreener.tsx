@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, ShieldHalf, Trophy } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { CoinLogo, FlashValue, Pct, Shimmer } from "@/components/pulse/primitives";
@@ -82,6 +82,7 @@ export function CoinScreener({
   currency: CurrencyCode;
 }) {
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"top" | "privacy">("top");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "rank", dir: "asc" });
 
   const onSort = (key: SortKey) =>
@@ -94,7 +95,8 @@ export function CoinScreener({
   const rows = useMemo(() => {
     if (!snapshot) return [];
     const q = query.trim().toLowerCase();
-    const filtered = snapshot.coins.filter(
+    const source = tab === "privacy" ? snapshot.privacyCoins : snapshot.coins;
+    const filtered = source.filter(
       (c) => !q || c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q),
     );
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -102,14 +104,39 @@ export function CoinScreener({
       if (sort.key === "name") return a.name.localeCompare(b.name) * dir;
       return (a[sort.key] - b[sort.key]) * dir;
     });
-  }, [snapshot, query, sort]);
+  }, [snapshot, query, sort, tab]);
 
   return (
     <section className="panel overflow-hidden animate-fade-up" style={{ animationDelay: "200ms" }}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.16em] text-primary">Live Screener</div>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">Top 15 cryptocurrencies</h2>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
+            {tab === "privacy" ? "Privacy coins" : "Top 15 cryptocurrencies"}
+          </h2>
+        </div>
+        <div role="tablist" aria-label="Screener filter" className="flex rounded-xl border border-border bg-secondary/40 p-1">
+          {([
+            { id: "top", label: "Top 15", icon: Trophy },
+            { id: "privacy", label: "Privacy Coins", icon: ShieldHalf },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
+                tab === t.id
+                  ? "bg-primary/15 text-primary shadow-glow"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <t.icon className="size-3.5" />
+              {t.label}
+            </button>
+          ))}
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -175,7 +202,7 @@ export function CoinScreener({
             {snapshot && rows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-sm text-muted-foreground">
-                  No coins match “{query}”.
+                  {query ? <>No coins match “{query}”.</> : "Privacy coin data isn't available right now."}
                 </td>
               </tr>
             )}
