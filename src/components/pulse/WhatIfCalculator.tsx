@@ -1,0 +1,301 @@
+import { subDays, subHours, format } from "date-fns";
+import { Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+import { CoinLogo, Shimmer } from "@/components/pulse/primitives";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
+import {
+  convertFromUsd,
+  convertToUsd,
+  currencySymbol,
+  formatMoney,
+  formatPercent,
+  type CurrencyCode,
+} from "@/lib/currency";
+import {
+  TIMEFRAMES,
+  WHAT_IF_SYMBOLS,
+  buildPricePath,
+  computeWhatIf,
+  priceDaysAgo,
+  type MarketSnapshot,
+  type Timeframe,
+} from "@/lib/market";
+import { cn } from "@/lib/utils";
+
+const PRESETS_USD = [100, 500, 1000, 5000];
+
+function roundForInput(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.round(n * 100) / 100);
+}
+
+export function WhatIfCalculator({
+  snapshot,
+  currency,
+}: {
+  snapshot: MarketSnapshot | undefined;
+  currency: CurrencyCode;
+}) {
+  const [symbol, setSymbol] = useState<(typeof WHAT_IF_SYMBOLS)[number]>("BTC");
+  const [tfId, setTfId] = useState<Timeframe["id"]>("1y");
+  const [amountUsd, setAmountUsd] = useState(100);
+  const [draft, setDraft] = useState("100");
+  const prevCurrency = useRef(currency);
+
+  // Keep the same real value when the user switches currency (e.g. $100 → ₨28,140).
+  useEffect(() => {
+    if (prevCurrency.current !== currency) {
+      prevCurrency.current = currency;
+      setDraft(roundForInput(convertFromUsd(amountUsd, currency)));
+    }
+  }, [currency, amountUsd]);
+
+  const tf = TIMEFRAMES.find((t) => t.id === tfId) ?? TIMEFRAMES[3];
+  const coin = snapshot?.coins.find((c) => c.symbol === symbol);
+  const pastPrice = coin ? priceDaysAgo(coin, tf.days) : null;
+  const result = coin && pastPrice ? computeWhatIf(amountUsd, pastPrice, coin.price) : null;
+  const gain = (result?.profitUsd ?? 0) >= 0;
+
+  const chartData = useMemo(() => {
+    if (!coin || !result) return [];
+    const now = new Date();
+    return buildPricePath(coin, tf.days, 64).map((p) => {
+      const date = p.daysAgo >= 1 ? subDays(now, Math.round(p.daysAgo)) : subHours(now, Math.round(p.daysAgo * 24));
+      return { ts: date.getTime(), value: result.units * p.price };
+    });
+  }, [coin, result, tf.days]);
+
+  const animatedValue = useAnimatedNumber(result?.valueUsd ?? 0);
+  const sym = currencySymbol(currency);
+  const stroke = gain ? "var(--gain)" : "var(--loss)";
+
+  return (
+    <section className="panel overflow-hidden animate-fade-up" style={{ animationDelay: "120ms" }}>
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-primary">
+            <Sparkles className="size-3.5" /> What-If Simulator
+          </div>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
+            What if you had invested earlier?
+          </h2>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Based on CoinMarketCap % changes{tf.id === "1y" ? " · 1Y uses reference history" : ""}
+        </p>
+      </div>
+
+      <div className="grid gap-0 lg:grid-cols-[360px_1fr]">
+        {/* Inputs */}
+        <div className="space-y-6 border-b border-border p-5 sm:p-6 lg:border-b-0 lg:border-r">
+          <div>
+            <div className="mb-2.5 text-xs font-medium text-muted-foreground">Pick a coin</div>
+            <div className="grid grid-cols-3 gap-2">
+              {WHAT_IF_SYMBOLS.map((s) => {
+                const c = snapshot?.coins.find((x) => x.symbol === s);
+                const active = s === symbol;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSymbol(s)}
+                    disabled={!c}
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-medium transition-all",
+                      active
+                        ? "border-primary/60 bg-primary/10 text-foreground shadow-glow"
+                        : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                      !c && "opacity-40",
+                    )}
+                  >
+                    {c ? <CoinLogo id={c.id} symbol={s} size={20} /> : <span className="size-5 rounded-full bg-muted" />}
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="amount" className="mb-2.5 block text-xs font-medium text-muted-foreground">
+              Investment amount ({currency})
+            </label>
+            <div className="flex items-center rounded-xl border border-input bg-secondary/40 px-3 focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-ring/30">
+              <span className="num text-lg text-muted-foreground">{sym}</span>
+              <input
+                id="amount"
+                inputMode="decimal"
+                value={draft}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9.]/g, "");
+                  setDraft(v);
+                  const n = parseFloat(v);
+                  setAmountUsd(Number.isFinite(n) ? convertToUsd(n, currency) : 0);
+                }}
+                className="num h-12 w-full bg-transparent px-2 text-xl font-semibold outline-none placeholder:text-muted-foreground/50"
+                placeholder="0"
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {PRESETS_USD.map((usd) => {
+                const local = Math.round(convertFromUsd(usd, currency));
+                return (
+                  <button
+                    key={usd}
+                    type="button"
+                    onClick={() => {
+                      setDraft(String(local));
+                      setAmountUsd(convertToUsd(local, currency));
+                    }}
+                    className="num rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                  >
+                    {formatMoney(usd, currency, { compact: true }).replace(/\.00$/, "")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2.5 text-xs font-medium text-muted-foreground">Invested…</div>
+            <div className="grid grid-cols-2 gap-2">
+              {TIMEFRAMES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTfId(t.id)}
+                  className={cn(
+                    "rounded-xl border px-3 py-2.5 text-sm font-medium transition-all",
+                    t.id === tfId
+                      ? "border-primary/60 bg-primary/10 text-foreground"
+                      : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Result */}
+        <div className="p-5 sm:p-6">
+          {!snapshot || !coin ? (
+            <div className="space-y-4">
+              <Shimmer className="h-5 w-48" />
+              <Shimmer className="h-12 w-72" />
+              <Shimmer className="h-[260px] w-full" />
+            </div>
+          ) : !result || amountUsd <= 0 ? (
+            <div className="grid h-full min-h-[300px] place-items-center text-center text-sm text-muted-foreground">
+              Enter an amount to see what it would be worth today.
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    {formatMoney(amountUsd, currency)} in {coin.name} {tf.label.toLowerCase()} would be worth
+                  </div>
+                  <div className="num mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
+                    {formatMoney(animatedValue, currency)}
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-2xl border px-4 py-2.5",
+                    gain ? "border-gain/30 bg-gain/10 text-gain" : "border-loss/30 bg-loss/10 text-loss",
+                  )}
+                >
+                  {gain ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />}
+                  <div>
+                    <div className="num text-lg font-semibold leading-tight">{formatPercent(result.profitPct)}</div>
+                    <div className="num text-xs opacity-80">
+                      {gain ? "+" : "−"}
+                      {formatMoney(Math.abs(result.profitUsd), currency)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 h-[260px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart key={`${symbol}-${tf.id}`} data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="whatif-fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" style={{ stopColor: stroke, stopOpacity: 0.35 }} />
+                        <stop offset="100%" style={{ stopColor: stroke, stopOpacity: 0 }} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="var(--border)" vertical={false} />
+                    <XAxis
+                      dataKey="ts"
+                      type="number"
+                      domain={["dataMin", "dataMax"]}
+                      tickFormatter={(ts: number) => format(ts, tf.days <= 7 ? "EEE" : tf.days <= 90 ? "MMM d" : "MMM ''yy")}
+                      tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      minTickGap={32}
+                    />
+                    <YAxis
+                      tickFormatter={(v: number) => formatMoney(v, currency, { compact: true, whole: true })}
+                      tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={78}
+                      domain={["auto", "auto"]}
+                    />
+                    <ReferenceLine
+                      y={amountUsd}
+                      stroke="var(--muted-foreground)"
+                      strokeDasharray="4 4"
+                      label={{ value: "Invested", position: "insideTopLeft", fill: "var(--muted-foreground)", fontSize: 11 }}
+                    />
+                    <Tooltip
+                      cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
+                      content={({ active, payload }) => {
+                        const p = payload?.[0]?.payload as { ts: number; value: number } | undefined;
+                        if (!active || !p) return null;
+                        return (
+                          <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+                            <div className="text-muted-foreground">{format(p.ts, "MMM d, yyyy")}</div>
+                            <div className="num mt-0.5 text-sm font-semibold">{formatMoney(p.value, currency)}</div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke={stroke}
+                      strokeWidth={2.25}
+                      fill="url(#whatif-fill)"
+                      animationDuration={900}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  ["Price then", formatMoney(pastPrice ?? 0, currency)],
+                  ["Price now", formatMoney(coin.price, currency)],
+                  ["Coins bought", `${result.units < 1 ? result.units.toPrecision(4) : result.units.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${coin.symbol}`],
+                  ["Multiplier", `${(result.valueUsd / amountUsd).toFixed(2)}×`],
+                ].map(([k, v]) => (
+                  <div key={k} className="rounded-xl border border-border bg-secondary/30 px-3 py-2.5">
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{k}</dt>
+                    <dd className="num mt-1 truncate text-sm font-medium">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
