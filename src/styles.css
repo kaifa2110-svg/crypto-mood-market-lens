@@ -9,7 +9,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Crypto Mood Market Lens design system — dark-only fintech terminal.
+ * CryptoPulser.com design system — dark-only fintech terminal.
  * Ink-navy surfaces, electric-mint primary, amber highlight, gain/loss semantic colors.
  */
 
@@ -279,4 +279,9 @@
   user-select: none;
   pointer-events: none;
   transition: filter 0.3s ease;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }

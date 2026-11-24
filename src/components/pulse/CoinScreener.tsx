@@ -1,5 +1,9 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, Trophy } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Building2, ChevronLeft, ChevronRight, Flame, Gauge, Newspaper, PieChart, Search, Star, TrendingDown, TrendingUp, Trophy } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { AltIndexPanel, ExchangesPanel, NewsPanel, OverviewPanel, VolumePanel } from "@/components/pulse/ScreenerPanels";
+import { toggleWatch, topGainers, topLosers, trending } from "@/lib/insights";
+import { STORAGE_PREFIX, useSettings } from "@/lib/settings";
 
 import { CoinLogo, FlashValue, Pct, Shimmer } from "@/components/pulse/primitives";
 import { formatMoney, type CurrencyCode } from "@/lib/currency";
@@ -158,6 +162,22 @@ function Pager({
   );
 }
 
+type TabId = "top" | "trending" | "watchlist" | "overview" | "gainers" | "losers" | "altindex" | "volume" | "exchanges" | "news";
+const WATCH_KEY = `${STORAGE_PREFIX}watchlist`;
+const TABLE_TABS = new Set<TabId>(["top", "trending", "watchlist", "gainers", "losers"]);
+const TABS: { id: TabId; label: string; title: string; icon: typeof Trophy }[] = [
+  { id: "top", label: `Top ${SCREENER_LIMIT}`, title: `Top ${SCREENER_LIMIT} cryptocurrencies`, icon: Trophy },
+  { id: "trending", label: "Trending", title: "Trending now", icon: Flame },
+  { id: "watchlist", label: "Watchlist", title: "Your watchlist", icon: Star },
+  { id: "overview", label: "Overview", title: "Market cap by sector", icon: PieChart },
+  { id: "gainers", label: "Top Gainers", title: "Top gainers (24h)", icon: TrendingUp },
+  { id: "losers", label: "Top Losers", title: "Top losers (24h)", icon: TrendingDown },
+  { id: "altindex", label: "Altcoins Index", title: "Altcoin Season Index", icon: Gauge },
+  { id: "volume", label: "Crypto Volume", title: "24h volume leaders", icon: BarChart3 },
+  { id: "exchanges", label: "Exchanges", title: "Top crypto exchanges", icon: Building2 },
+  { id: "news", label: "Latest News", title: "Latest crypto news", icon: Newspaper },
+];
+
 export function CoinScreener({
   snapshot,
   currency,
@@ -166,7 +186,31 @@ export function CoinScreener({
   currency: CurrencyCode;
 }) {
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"top" | "privacy">("top");
+  const [tab, setTab] = useState<TabId>("top");
+  const { wipeCount } = useSettings();
+  const [watch, setWatch] = useState<number[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WATCH_KEY);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+      setWatch(Array.isArray(parsed) ? parsed.filter((x): x is number => typeof x === "number") : []);
+    } catch {
+      setWatch([]);
+    }
+  }, [wipeCount]);
+  const onStar = (id: number) => {
+    setWatch((prev) => {
+      const next = toggleWatch(prev, id);
+      try {
+        localStorage.setItem(WATCH_KEY, JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+  };
+  const current = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const isTable = TABLE_TABS.has(tab);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "rank", dir: "asc" });
   const [page, setPage] = useState(1);
   const sectionRef = useRef<HTMLElement>(null);
@@ -183,7 +227,15 @@ export function CoinScreener({
   const rows = useMemo(() => {
     if (!snapshot) return [];
     const q = query.trim().toLowerCase();
-    const source = tab === "privacy" ? snapshot.privacyCoins : snapshot.coins;
+    const all = snapshot.coins;
+    const source =
+      tab === "trending" ? trending(all)
+      : tab === "watchlist" ? all.filter((c) => watch.includes(c.id))
+      : tab === "gainers" ? topGainers(all)
+      : tab === "losers" ? topLosers(all)
+      : all;
+    // Curated tabs keep their own ranking order until the user picks a column.
+    if (tab !== "top" && tab !== "watchlist" && sort.key === "rank" && !q) return source;
     const filtered = source.filter(
       (c) => !q || c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q),
     );
@@ -192,7 +244,7 @@ export function CoinScreener({
       if (sort.key === "name") return a.name.localeCompare(b.name) * dir;
       return (a[sort.key] - b[sort.key]) * dir;
     });
-  }, [snapshot, query, sort, tab]);
+  }, [snapshot, query, sort, tab, watch]);
 
   const view = paginate(rows, page, SCREENER_PAGE_SIZE);
 
@@ -209,34 +261,10 @@ export function CoinScreener({
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.16em] text-primary">Live Screener</div>
           <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-            {tab === "privacy" ? "Privacy coins" : `Top ${SCREENER_LIMIT} cryptocurrencies`}
+            {current?.title}
           </h2>
         </div>
-        <div role="tablist" aria-label="Screener filter" className="flex rounded-xl border border-border bg-secondary/40 p-1">
-          {([
-            { id: "top", label: `Top ${SCREENER_LIMIT}`, icon: Trophy },
-          ] as const).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => {
-                setTab(t.id);
-                setPage(1);
-              }}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
-                tab === t.id
-                  ? "bg-primary/15 text-primary shadow-glow"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <t.icon className="size-3.5" />
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {isTable && (
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -250,8 +278,46 @@ export function CoinScreener({
             className="h-10 w-full rounded-xl border border-input bg-secondary/40 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60 focus:ring-2 focus:ring-ring/30"
           />
         </div>
+        )}
+      </div>
+      <div role="tablist" aria-label="Screener views" className="no-scrollbar flex gap-1.5 overflow-x-auto border-b border-border px-5 py-2.5 sm:px-6">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => {
+              setTab(t.id);
+              setPage(1);
+              setSort({ key: "rank", dir: "asc" });
+            }}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
+              tab === t.id
+                ? "border-primary/40 bg-primary/15 text-primary shadow-glow"
+                : "border-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+            )}
+          >
+            <t.icon className="size-3.5" />
+            {t.label}
+            {t.id === "watchlist" && watch.length > 0 && <span className="num text-xs opacity-70">{watch.length}</span>}
+          </button>
+        ))}
       </div>
 
+      {!isTable && !snapshot && <div className="p-6"><Shimmer className="h-48 w-full" /></div>}
+      {!isTable && snapshot && (
+        <div key={tab} className="animate-fade-in">
+          {tab === "overview" && <OverviewPanel snapshot={snapshot} currency={currency} />}
+          {tab === "altindex" && <AltIndexPanel snapshot={snapshot} />}
+          {tab === "volume" && <VolumePanel snapshot={snapshot} currency={currency} />}
+          {tab === "exchanges" && <ExchangesPanel currency={currency} />}
+          {tab === "news" && <NewsPanel />}
+        </div>
+      )}
+
+      {isTable && (<>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] text-sm">
           <thead className="text-xs text-muted-foreground">
@@ -277,7 +343,20 @@ export function CoinScreener({
                 ))
               : view.items.map((c) => (
                   <tr key={c.id} className="group border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40">
-                    <td className="num px-3 py-3 pl-6 text-muted-foreground">{c.rank}</td>
+                    <td className="num px-3 py-3 pl-4 text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onStar(c.id)}
+                          aria-label={watch.includes(c.id) ? `Remove ${c.name} from watchlist` : `Add ${c.name} to watchlist`}
+                          aria-pressed={watch.includes(c.id)}
+                          className="rounded p-0.5 transition-transform hover:scale-110"
+                        >
+                          <Star className={cn("size-4", watch.includes(c.id) ? "fill-primary text-primary" : "text-muted-foreground/50 hover:text-primary")} />
+                        </button>
+                        {c.rank}
+                      </div>
+                    </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-3">
                         <CoinLogo id={c.id} symbol={c.symbol} />
@@ -304,7 +383,7 @@ export function CoinScreener({
             {snapshot && rows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-sm text-muted-foreground">
-                  {query ? <>No coins match “{query}”.</> : "Privacy coin data isn't available right now."}
+                  {query ? <>No coins match “{query}”.</> : tab === "watchlist" ? "Tap the star on any coin to add it to your watchlist." : "No coins to show right now."}
                 </td>
               </tr>
             )}
@@ -321,6 +400,7 @@ export function CoinScreener({
           onPage={goToPage}
         />
       )}
+      </>)}
     </section>
   );
 }

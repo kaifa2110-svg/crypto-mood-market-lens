@@ -1,8 +1,8 @@
-# Crypto Mood Market Lens
+# CryptoPulser.com
 
 **Powered by the CoinMarketCap API** — built for the CoinMarketCap API Hackathon.
 
-Crypto Mood Market Lens is a dark-mode crypto analytics dashboard that reads the market's mood at a glance and answers the question every holder asks: *"What if I had invested back then?"*
+CryptoPulser.com is a dark-mode crypto analytics dashboard that reads the market's mood at a glance and answers the question every holder asks: *"What if I had invested back then?"*
 
 **Live app**: https://crypto-mood-market-lens.lovable.app
 

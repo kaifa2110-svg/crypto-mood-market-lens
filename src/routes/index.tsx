@@ -14,13 +14,13 @@ import { useSettings } from "@/lib/settings";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Crypto Mood Market Lens — Live Crypto Analytics" },
+      { title: "CryptoPulser.com — Live Crypto Analytics" },
       {
         name: "description",
         content:
           "Live crypto market dashboard powered by CoinMarketCap: market cap, BTC dominance, Fear & Greed, a top-100 screener and a What-If investment simulator in USD, PKR, EUR, AED and INR.",
       },
-      { property: "og:title", content: "Crypto Mood Market Lens" },
+      { property: "og:title", content: "CryptoPulser.com" },
       {
         property: "og:description",
         content: "See the crypto market's pulse and find out what your past investment would be worth today.",

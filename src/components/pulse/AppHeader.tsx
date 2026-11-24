@@ -32,10 +32,10 @@ function Logo() {
       </div>
       <div className="leading-tight">
         <div className="hidden text-sm font-semibold tracking-tight sm:block sm:text-base">
-          Crypto Mood <span className="text-gradient">Market Lens</span>
+          CryptoPulser<span className="text-gradient">.com</span>
         </div>
         <div className="hidden text-[11px] uppercase tracking-[0.18em] text-muted-foreground lg:block">
-          Powered by CoinMarketCap API
+          Privacy-First Crypto Intelligence • Powered by CoinMarketCap API
         </div>
       </div>
     </div>
