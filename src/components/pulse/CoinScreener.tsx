@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, ShieldHalf, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, Trophy } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { CoinLogo, FlashValue, Pct, Shimmer } from "@/components/pulse/primitives";
@@ -215,7 +215,6 @@ export function CoinScreener({
         <div role="tablist" aria-label="Screener filter" className="flex rounded-xl border border-border bg-secondary/40 p-1">
           {([
             { id: "top", label: `Top ${SCREENER_LIMIT}`, icon: Trophy },
-            { id: "privacy", label: "Privacy Coins", icon: ShieldHalf },
           ] as const).map((t) => (
             <button
               key={t.id}

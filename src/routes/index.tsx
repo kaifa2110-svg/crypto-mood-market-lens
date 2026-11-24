@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
+import { AskPulser } from "@/components/pulse/AskPulser";
+import { AutoLockShield } from "@/components/pulse/AutoLockShield";
 import { AppHeader } from "@/components/pulse/AppHeader";
 import { CoinScreener } from "@/components/pulse/CoinScreener";
 import { OverviewCards } from "@/components/pulse/OverviewCards";
@@ -100,6 +102,8 @@ function Index() {
           <span>Not financial advice. Exchange rates are indicative.</span>
         </footer>
       </main>
+      <AskPulser snapshot={snapshot} currency={currency} />
+      <AutoLockShield />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, KeyRound, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Ghost, Lock, KeyRound, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -177,7 +177,29 @@ function SettingsDialog() {
   );
 }
 
+function PrivacySwitch({ icon: Icon, label, hint, checked, onChange }: {
+  icon: typeof Lock;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-2.5">
+      <span className="flex items-start gap-2">
+        <Icon className="mt-0.5 size-4 text-primary" />
+        <span>
+          <span className="block text-xs font-medium text-foreground">{label}</span>
+          <span className="block text-[11px] text-muted-foreground">{hint}</span>
+        </span>
+      </span>
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+    </label>
+  );
+}
+
 function PrivacyBadge() {
+  const { settings, update } = useSettings();
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -195,13 +217,17 @@ function PrivacyBadge() {
           <ShieldCheck className="size-4 text-primary" /> Local & Private
         </div>
         <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
-          <li>• Your API key, settings and calculation history are saved only in this browser.</li>
+          <li>• Your API key, settings, calculation history and chat are saved only in this browser.</li>
           <li>• No accounts, no cookies, no analytics or tracking in this app.</li>
           <li>
             • In live mode your key is relayed straight to CoinMarketCap to fetch prices (they block
             direct browser calls) and is never saved on any server.
           </li>
         </ul>
+        <div className="mt-4 space-y-2">
+          <PrivacySwitch icon={Lock} label="Auto-Lock Shield" hint="Blur the screen after 60s of inactivity" checked={settings.autoLock} onChange={(v) => update({ autoLock: v })} />
+          <PrivacySwitch icon={Ghost} label="Incognito Mode" hint="Don't save calculations or chat in this browser" checked={settings.incognito} onChange={(v) => update({ incognito: v })} />
+        </div>
         <PanicWipeButton variant="full" />
       </PopoverContent>
     </Popover>
@@ -215,7 +241,7 @@ function PanicWipeButton({ variant = "icon" }: { variant?: "icon" | "full" }) {
     wipe();
     // Drop cached live responses (their cache key includes the API key).
     queryClient.removeQueries({ queryKey: ["cmc-snapshot"] });
-    toast.success("Wiped: API key and calculation history erased from this browser");
+    toast.success("Wiped: API key, history and chat erased — session reset");
   };
   if (variant === "full") {
     return (
@@ -231,7 +257,7 @@ function PanicWipeButton({ variant = "icon" }: { variant?: "icon" | "full" }) {
       onClick={onWipe}
       aria-label="Panic wipe: clear API key and history"
       title="Panic Wipe — clear API key & history"
-      className="text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+      className="text-destructive hover:bg-destructive/15 hover:text-destructive"
     >
       <Trash2 />
     </Button>
